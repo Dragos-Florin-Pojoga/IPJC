@@ -1,0 +1,81 @@
+name: Unity Build
+
+on:
+  workflow_call:
+    inputs:
+      targetPlatform:
+        required: true
+        type: string
+      buildName:
+        required: true
+        type: string
+      runner:
+        required: true
+        type: string
+      productName:
+        required: true
+        type: string
+    outputs:
+      artifact-name:
+        description: "Build archive"
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      artifact-name: ${{ inputs.buildName }}
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 📝 Create LFS file list
+        run: git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+
+      - name: 💾 LFS cache
+        uses: actions/cache@v4
+        id: lfs-cache
+        with:
+          path: .git/lfs
+          key: ${{ inputs.targetPlatform }}-lfs-${{ hashFiles('.lfs-assets-id') }}
+
+      - name: ⬇️ Git LFS Pull
+        run: |
+          git lfs pull
+          git add .
+          git reset --hard
+
+      - name: 📚 Unity Library cache
+        uses: actions/cache@v4
+        with:
+          path: Unity/Library
+          key: Library-${{ inputs.targetPlatform }}-${{ hashFiles('Unity/Assets/**', 'Unity/Packages/**', 'Unity/ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ inputs.targetPlatform }}-
+
+      - name: 🔨 Build project
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: ${{ inputs.targetPlatform }}
+          projectPath: Unity
+          buildName: ${{ inputs.productName }}
+
+      - name: 📦 Archive Build Artifact (Windows)
+        if: runner.os == 'Windows'
+        run: 7z a -tzip "${{ inputs.buildName }}.zip" -x!*DoNotShip* ./build/*
+
+      - name: 📦 Archive Build Artifact (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: tar czf "${{ inputs.buildName }}.tar.gz" --exclude='*DoNotShip*' -C build .
+
+      - name: ⬆️ Upload Build Artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ inputs.buildName }}
+          path: ${{ inputs.buildName }}.*

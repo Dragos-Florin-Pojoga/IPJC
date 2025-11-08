@@ -1,0 +1,36 @@
+name: Unity Build & Release
+
+on:
+  push:
+    branches:
+      - 'main'  # Runs on pushes to main
+    tags:
+      - 'v*'    # Runs on tags like v1.0, v1.2.3
+  pull_request:
+    branches:
+      - 'main'  # Runs on pull requests targeting main
+
+jobs:
+  build-linux:
+    uses: ./.github/workflows/build_unity.yml
+    with:
+      targetPlatform: StandaloneLinux64
+      buildName: linux-build
+      runner: ubuntu-latest
+      productName: IPJC
+    secrets: inherit
+
+  build-windows:
+    uses: ./.github/workflows/build_unity.yml
+    with:
+      targetPlatform: StandaloneWindows64
+      buildName: windows-build
+      runner: windows-latest
+      productName: IPJC
+    secrets: inherit
+
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux, build-windows]
+    uses: ./.github/workflows/create_release.yml
+    secrets: inherit
