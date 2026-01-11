@@ -19,6 +19,10 @@ public class Weapon : MonoBehaviour
     // This is called by the PlayerWeaponController
     public void Fire(Vector3 aimDirection, StatController ownerStats)
     {
+        Debug.Log("WEAPON FIRE");
+        Debug.Log("BaseSpell = " + baseSpell);
+        Debug.Log("Projectile Prefab = " + baseSpell.projectilePrefab);
+
         if (baseSpell == null || spawnPoint == null || ownerStats == null) {
             Debug.LogError("Weapon is not configured!");
             return;
@@ -39,6 +43,8 @@ public class Weapon : MonoBehaviour
             spawnPoint.position, 
             Quaternion.LookRotation(aimDirection)
         );
+
+        Debug.Log("PROJECTILE SPAWNED: " + projGO.name);
 
         Projectile projectile = projGO.GetComponent<Projectile>();
         if (projectile != null) {

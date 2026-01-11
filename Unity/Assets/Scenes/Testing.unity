@@ -826,7 +826,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mainCamera: {fileID: 1867691000}
   currentWeapon: {fileID: 400941686}
+  currentItem: {fileID: 0}
   aimRaycastDistance: 100
+  m_statController: {fileID: 0}
+  weaponHolder: {fileID: 0}
 --- !u!114 &1087738584
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -916,10 +919,6 @@ PrefabInstance:
     - target: {fileID: 5096096103020394947, guid: df74a76c410006450804f43873ce7261, type: 3}
       propertyPath: m_TagString
       value: MainCamera
-      objectReference: {fileID: 0}
-    - target: {fileID: 5345479528470973352, guid: df74a76c410006450804f43873ce7261, type: 3}
-      propertyPath: m_CullingMask.m_Bits
-      value: 458807
       objectReference: {fileID: 0}
     - target: {fileID: 5962101247343467892, guid: df74a76c410006450804f43873ce7261, type: 3}
       propertyPath: m_Name

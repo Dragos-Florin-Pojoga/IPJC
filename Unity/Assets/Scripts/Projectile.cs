@@ -57,6 +57,7 @@ public class Projectile : MonoBehaviour
 
     void Update()
     {
+        Debug.DrawLine(transform.position, transform.position + transform.forward * 2, Color.red, 0.1f, false);
         if (m_isDestroyed) return;
 
         transform.position += Direction * m_speed * Time.deltaTime;
