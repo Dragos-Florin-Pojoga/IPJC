@@ -1,119 +1,80 @@
 using UnityEngine;
+using UnityEngine.AI; // MODIFICARE: Necesar pentru NavMesh
 using System.Collections;
 using UnityEngine.InputSystem;
 using System.Linq;
 using System;
 using Random = UnityEngine.Random;
+using Unity.Burst.CompilerServices;
 using static UnityEngine.UI.Image;
 
+// MODIFICARE: Cere automat componenta NavMeshAgent
+[RequireComponent(typeof(NavMeshAgent))]
 public class EnemyController : MonoBehaviour
 {
-
+    [Header("NavMesh Settings")]
+    private NavMeshAgent agent; // Referinta catre agent
 
     [Header("PatrolPoints")]
     [SerializeField] private Transform patrolParent;
     [SerializeField] private float waitTimeAtPoint = 2f;
-    [SerializeField] private float arrivalDistance = 0.4f;
-
+    // arrivalDistance e gestionat acum de agent.stoppingDistance
 
     private bool isWaiting = false;
-
-
     private Transform[] patrolPoints;
-    private int currentPatrolIndex = -1;
+    private int currentPatrolIndex = 0;
     private float waitTimer = 0f;
-
-
-
 
     [Header("Vision")]
     [SerializeField] private float visionRange = 15f;
     [SerializeField] private float visionAngle = 60f;
     [SerializeField] private LayerMask visionMask;
-
-
     [SerializeField] private Transform player;
     private bool canSeePlayer = false;
 
-
-
-
-
     [Header("Scan")]
-    [SerializeField] private float scanRotationSpeed = 120f; // grade/sec
+    [SerializeField] private float scanRotationSpeed = 120f;
     [SerializeField] private float scanDuration = 2.5f;
-
     private bool isScanning = false;
     private float scanTimer = 0f;
 
+    // searchArrivalDistance gestionat de agent
 
-
-
-    [SerializeField] private float searchArrivalDistance = 0.8f;
-
-
-
-
-    [SerializeField] private float moveSpeed = 1.5f;
-    [SerializeField]
-    private float maxHealth = 100f;
-
+    [Header("Stats")]
+    [SerializeField] private float maxHealth = 100f;
     private float currentHealth;
     private bool isDead = false;
 
-    private Rigidbody rb;
     private Collider col;
+    [SerializeField] private FloatingHealthBar healthBar;
 
-    [SerializeField]
-    private FloatingHealthBar healthBar;
-
-
-
-
-    private enum AIState
-    {
-        Patrol,
-        Aggro,
-        Search
-    }
-
+    private enum AIState { Patrol, Aggro, Search }
     [SerializeField] private AIState currentState = AIState.Patrol;
-
-
-
 
     [Header("Aggro")]
     [SerializeField] private float loseAggroDelay = 0.5f;
-
     private float loseAggroTimer = 0f;
-
-
-
     private Vector3 lastSeenPlayerPosition;
     private bool hasLastSeenPosition = false;
-
     private bool reachedLastSeen = false;
 
-
     Animator animator;
-
     [SerializeField] Transform warriorVisual;
 
     [SerializeField] private float attackRange = 2.0f;
     [SerializeField] private float attackCooldown = 1.5f;
     private float attackTimer = 0f;
 
-
     void Start()
     {
-
+        agent = GetComponent<NavMeshAgent>(); // Initializare NavMesh
         animator = GetComponentInChildren<Animator>();
-
-        currentHealth = maxHealth;
-        rb = GetComponent<Rigidbody>();
         col = GetComponent<Collider>();
+        currentHealth = maxHealth;
 
-        rb.isKinematic = true;
+        // Configurare Agent
+        agent.updateRotation = true; // Lasa agentul sa se roteasca singur cand merge
+        agent.updatePosition = true;
 
         if (healthBar != null)
             healthBar.UpdateHealthBar(currentHealth, maxHealth);
@@ -125,56 +86,42 @@ public class EnemyController : MonoBehaviour
         PickRandomPatrolPoint();
     }
 
-
-
-
-    bool CheckVision()
+    // Aceasta functie inlocuieste logica veche de verificare distanta
+    bool HasReachedDestination()
     {
-        if (player == null) return false;
-
-        Vector3 origin = transform.position + Vector3.up * 1.5f;
-        Vector3 toPlayer = (player.position - origin).normalized;
-
-        
-        float angle = Vector3.Angle(transform.forward, toPlayer);
-        if (angle > visionAngle)
-            return false;
-
-
-        if (Physics.Raycast(origin, toPlayer, out RaycastHit hit, visionRange, visionMask))
+        if (!agent.pathPending)
         {
-            Transform hitT = hit.collider.transform;
-            if (hitT == player || hitT.IsChildOf(player))
-                return true;
+            if (agent.remainingDistance <= agent.stoppingDistance)
+            {
+                if (!agent.hasPath || agent.velocity.sqrMagnitude == 0f)
+                {
+                    return true;
+                }
+            }
         }
-
         return false;
     }
 
-
-
-
-
     void PatrolBehaviour()
     {
-        moveSpeed = 1f;
+        agent.speed = 1.5f; // Viteza de patrol
         if (patrolPoints.Length == 0) return;
 
-        Transform target = patrolPoints[currentPatrolIndex];
-        float distance = Vector3.Distance(transform.position, target.position);
+        Vector3 target = patrolPoints[currentPatrolIndex].position;
+        agent.SetDestination(target); // MODIFICARE: NavMesh calculeaza calea
 
         // ================= ARRIVED =================
-        if (distance < 0.8f)
+        if (HasReachedDestination())
         {
             animator.SetBool("isWalking", false);
 
-            rb.linearVelocity = Vector3.zero;
+            // Opreste agentul ca sa nu alunece
+            agent.isStopped = true;
 
-            
             if (!isScanning)
             {
                 isWaiting = true;
-                waitTimer += Time.fixedDeltaTime;
+                waitTimer += Time.deltaTime; // NavMesh merge pe Update, folosim deltaTime
 
                 if (waitTimer >= waitTimeAtPoint)
                 {
@@ -183,92 +130,83 @@ public class EnemyController : MonoBehaviour
                     isScanning = true;
                     scanTimer = 0f;
                 }
-
                 return;
             }
 
-            
             if (isScanning)
             {
+                // Scanning logic (Rotatie manuala)
+                // Dezactivam rotatia automata a agentului temporar daca vrem control manual fin
+                transform.Rotate(Vector3.up, scanRotationSpeed * Time.deltaTime);
 
-                // daca vede player-ul => STOP TOTAL
+                scanTimer += Time.deltaTime;
+
                 if (CheckVision())
                 {
                     Debug.Log("Player spotted during scan!");
-                    rb.linearVelocity = Vector3.zero;
                     return;
                 }
 
-
-                // se roteste
-                transform.Rotate(Vector3.up, scanRotationSpeed * Time.fixedDeltaTime);
-                scanTimer += Time.fixedDeltaTime;
-
-
-                // a terminat scanarea
                 if (scanTimer >= scanDuration)
                 {
                     isScanning = false;
+                    agent.isStopped = false; // Pornim din nou agentul
                     PickRandomPatrolPoint();
                 }
-
                 return;
             }
         }
-
-        // ================= MOVING =================
-        if (!isWaiting && !isScanning)
+        else
         {
-            MoveTowards(target.position, moveSpeed);
+            // Moving
+            agent.isStopped = false;
+            animator.SetBool("isWalking", true);
         }
     }
+
+
 
 
 
     void AggroBehaviour()
     {
-
         if (isDead) return;
+
+        agent.speed = 3.5f;
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        // ===========================
-        // 2. NORMAL ATTACK: MELEE
-        // ===========================
-        attackTimer += Time.fixedDeltaTime;
-
+  
         if (distanceToPlayer <= attackRange)
         {
-            rb.linearVelocity = Vector3.zero;
-
+            agent.isStopped = true;
             animator.SetBool("isWalking", false);
+
 
             Vector3 dir = player.position - transform.position;
             dir.y = 0;
             if (dir != Vector3.zero)
             {
-                transform.rotation = Quaternion.Slerp(
-                    transform.rotation,
-                    Quaternion.LookRotation(dir),
-                    10f * Time.fixedDeltaTime
-                );
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), 10f * Time.deltaTime);
             }
 
+            attackTimer += Time.deltaTime;
             if (attackTimer >= attackCooldown)
             {
                 animator.SetTrigger("isAttacking");
                 attackTimer = 0f;
             }
-
-            return;
         }
+        else
+        {
+            agent.isStopped = false;
+            agent.SetDestination(player.position);
+            animator.SetBool("isWalking", true);
 
-        moveSpeed = 2.5f;
-        MoveTowards(player.position, moveSpeed);
-
-
-
+            attackTimer += Time.deltaTime;
+        }
     }
+
 
 
 
@@ -282,185 +220,99 @@ public class EnemyController : MonoBehaviour
             return;
         }
 
-        // ================= MOVE =================
+        agent.speed = 2.5f;
+
+        // Move to last seen
         if (!reachedLastSeen)
         {
-            float dist = Vector3.Distance(transform.position, lastSeenPlayerPosition);
+            agent.SetDestination(lastSeenPlayerPosition);
+            animator.SetBool("isWalking", true);
 
-            if (dist > searchArrivalDistance)
+            if (HasReachedDestination())
             {
-                MoveTowards(lastSeenPlayerPosition, moveSpeed);
+                reachedLastSeen = true;
+                agent.isStopped = true;
+                animator.SetBool("isWalking", false);
+            }
+        }
+        else
+        {
+            // Scan logic la destinatie
+            if (!isScanning)
+            {
+                isScanning = true;
+                scanTimer = 0f;
+            }
+
+            transform.Rotate(Vector3.up, scanRotationSpeed * Time.deltaTime);
+            scanTimer += Time.deltaTime;
+
+            if (CheckVision())
+            {
+                reachedLastSeen = false;
+                currentState = AIState.Aggro;
                 return;
             }
 
-            // ARRIVAL
-            reachedLastSeen = true;
-        }
-
-        rb.linearVelocity = Vector3.zero;
-
-        // ================= SCAN =================
-        if (!isScanning)
-        {
-            isScanning = true;
-            scanTimer = 0f;
-        }
-
-        animator.SetBool("isWalking", false);
-
-        transform.Rotate(Vector3.up, scanRotationSpeed * Time.fixedDeltaTime);
-        scanTimer += Time.fixedDeltaTime;
-
-        if (CheckVision())
-        {
-            Debug.Log("Player found again!");
-            reachedLastSeen = false;
-            currentState = AIState.Aggro;
-            return;
-        }
-
-        if (scanTimer >= scanDuration)
-        {
-            Debug.Log("Search failed -> PATROL");
-            isScanning = false;
-            reachedLastSeen = false;
-            hasLastSeenPosition = false;
-            currentState = AIState.Patrol;
-            PickRandomPatrolPoint();
+            if (scanTimer >= scanDuration)
+            {
+                isScanning = false;
+                reachedLastSeen = false;
+                hasLastSeenPosition = false;
+                currentState = AIState.Patrol;
+                PickRandomPatrolPoint();
+            }
         }
     }
 
-
-
-
-
-    void FixedUpdate()
+    // Folosim Update in loc de FixedUpdate pentru NavMesh (NavMesh nu e fizica pura)
+    void Update()
     {
         if (isDead) return;
 
-        switch (currentState)
-        {
-            case AIState.Patrol:
-                PatrolBehaviour();
-                break;
-
-            case AIState.Aggro:
-                AggroBehaviour();
-                break;
-
-            case AIState.Search:
-                SearchBehaviour();
-                break;
-        }
-
-    }
+        // Debug Input
+        if (Keyboard.current.hKey.wasPressedThisFrame) TakeDamage(25f);
 
 
 
-    void PickRandomPatrolPoint()
-    {
-        if (patrolPoints.Length == 0) return;
-
-        int newIndex;
-        do
-        {
-            newIndex = Random.Range(0, patrolPoints.Length);
-        }
-        while (newIndex == currentPatrolIndex && patrolPoints.Length > 1);
-
-        currentPatrolIndex = newIndex;
-    }
-
-
-    void MoveTowards(Vector3 target, float speed)
-    {
-        Vector3 flatTarget = new Vector3(
-            target.x,
-            transform.position.y,
-            target.z
-        );
-
-        Vector3 direction = (flatTarget - transform.position).normalized;
-        Vector3 newPos = rb.position + direction * speed * Time.fixedDeltaTime;
-
-        rb.MovePosition(newPos);
-        animator.SetBool("isWalking", true);
-
-        if (direction != Vector3.zero)
-            transform.rotation = Quaternion.LookRotation(direction);
-    }
-
-
-    void OnDrawGizmos()
-    {
-        if (patrolParent == null) return;
-
-        Gizmos.color = Color.cyan;
-        foreach (Transform p in patrolParent)
-            Gizmos.DrawSphere(p.position, 0.25f);
-
-        Gizmos.color = canSeePlayer ? Color.red : Color.green;
-        Gizmos.DrawLine(
-            transform.position + Vector3.up * 0.5f,
-            player.position
-        );
-
-        Vector3 origin = transform.position + Vector3.up * 1.5f;
-        Gizmos.color = Color.yellow;
-
-        Vector3 leftBoundary = Quaternion.Euler(0, -visionAngle, 0) * transform.forward;
-        Vector3 rightBoundary = Quaternion.Euler(0, visionAngle, 0) * transform.forward;
-
-        Gizmos.DrawLine(origin, origin + leftBoundary * visionRange);
-        Gizmos.DrawLine(origin, origin + rightBoundary * visionRange);
-    }
-
-
-
-    public void Update()
-    {
-        if (isDead) return;
-
-        if (Keyboard.current.hKey.wasPressedThisFrame)
-        {
-            Debug.Log("Enemy takes damage!");
-            TakeDamage(25f);
-        }
-
-        //bool seesPlayer = CheckVision();
 
         canSeePlayer = CheckVision();
-        bool seesPlayer = canSeePlayer;
 
+
+
+        // State Machine logic (identic cu ce aveai, doar curatat putin)
         switch (currentState)
         {
             case AIState.Patrol:
-                if (seesPlayer)
-                {
-                    Debug.Log("ENTER AGGRO");
-                    currentState = AIState.Aggro;
-                    isWaiting = false;
-                    isScanning = false;
-                }
+                if (canSeePlayer) SwitchToAggro();
+                else PatrolBehaviour();
                 break;
 
             case AIState.Aggro:
-                if (seesPlayer)
+                if (canSeePlayer)
                 {
-
-
                     lastSeenPlayerPosition = player.position;
-                    //because the player can be mid-air, the enemy can't reach the location => will be stuck there
-                    lastSeenPlayerPosition.y = transform.position.y;
-
+                    // Fix pentru NavMesh: Asigura-te ca punctul e pe NavMesh
+                    NavMeshHit hit;
+                    if (NavMesh.SamplePosition(lastSeenPlayerPosition, out hit, 2.0f, NavMesh.AllAreas))
+                    {
+                        lastSeenPlayerPosition = hit.position;
+                    }
 
                     hasLastSeenPosition = true;
                     loseAggroTimer = 0f;
-
+                    AggroBehaviour();
                 }
                 else
                 {
+                    // FIX: Pornim agentul si animatia cand pierdem player-ul
+                    agent.isStopped = false;
+                    animator.SetBool("isWalking", true);
+
                     loseAggroTimer += Time.deltaTime;
+                    // Continuam sa mergem spre ultima pozitie cunoscuta cat timp pierdem aggro
+                    agent.SetDestination(lastSeenPlayerPosition);
+
                     if (loseAggroTimer >= loseAggroDelay)
                     {
                         Debug.Log("Lost player -> SEARCH");
@@ -472,24 +324,63 @@ public class EnemyController : MonoBehaviour
 
 
             case AIState.Search:
-                if (seesPlayer)
-                {
-                    Debug.Log("SEARCH -> AGGRO");
-                    currentState = AIState.Aggro;
-
-                    reachedLastSeen = false;
-                    isScanning = false;
-                    loseAggroTimer = 0f;
-
-                    lastSeenPlayerPosition = player.position;
-                    lastSeenPlayerPosition.y = transform.position.y;
-                    hasLastSeenPosition = true;
-                }
+                if (canSeePlayer) SwitchToAggro();
+                else SearchBehaviour();
                 break;
         }
-
-
     }
+
+    void SwitchToAggro()
+    {
+        currentState = AIState.Aggro;
+        isWaiting = false;
+        isScanning = false;
+        reachedLastSeen = false;
+    }
+
+    // Restul metodelor (CheckVision, TakeDamage, Die, Gizmos) raman la fel
+    // Doar asigura-te ca in Die() opresti agentul:
+    private void Die()
+    {
+        isDead = true;
+        agent.enabled = false; // IMPORTANT: Oprim agentul cand moare
+        if (col != null) col.enabled = false;
+        animator.SetBool("isWalking", false);
+        StartCoroutine(DestroyAfterDelay(5f));
+        StartCoroutine(EnableCorpseCollider());
+    }
+
+
+    bool CheckVision()
+    {
+        if (player == null) return false;
+
+        // 1. RIDICI ORIGINEA (Inamicul)
+        // Schimba 1.5f cu 1.8f sau 2.0f ca sa plece raza mai de sus
+        Vector3 origin = transform.position + Vector3.up * 1.0f;
+
+        // 2. RIDICI TINTA (Player-ul)
+        // Schimba 1.0f cu 1.5f sau 1.8f ca sa tintesti mai sus in player
+        Vector3 targetPos = player.position + Vector3.up * 1.0f;
+
+        // --- De aici in jos e la fel ---
+
+        Debug.DrawLine(origin, targetPos, Color.blue); // Linia albastra de debug
+
+        Vector3 direction = (targetPos - origin).normalized;
+
+        // ... restul codului tau de unghi si raycast ...
+        if (Vector3.Angle(transform.forward, direction) > visionAngle) return false;
+
+        if (Physics.Raycast(origin, direction, out RaycastHit hit, visionRange, visionMask))
+        {
+            if (hit.collider.transform == player || hit.collider.transform.IsChildOf(player))
+                return true;
+        }
+        return false;
+    }
+
+
 
     public void TakeDamage(float damage)
     {
@@ -524,29 +415,7 @@ public class EnemyController : MonoBehaviour
 
 
         col.enabled = true;
-        rb.isKinematic = true;
 
-    }
-
-
-    private void Die()
-    {
-        isDead = true;
-
-        rb.isKinematic = true;
-        rb.useGravity = false;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        rb.constraints = RigidbodyConstraints.None;
-
-        if (col != null)
-            col.enabled = false;
-
-        //animator.SetBool("isDead", true);
-        animator.SetBool("isWalking", false);
-
-        StartCoroutine(DestroyAfterDelay(5f));
-        StartCoroutine(EnableCorpseCollider());
     }
 
 
@@ -555,5 +424,47 @@ public class EnemyController : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
         Destroy(gameObject);
+    }
+
+
+
+    void OnDrawGizmos()
+    {
+        if (patrolParent == null) return;
+
+        Gizmos.color = Color.cyan;
+        foreach (Transform p in patrolParent)
+            Gizmos.DrawSphere(p.position, 0.25f);
+
+        Gizmos.color = canSeePlayer ? Color.red : Color.green;
+        Gizmos.DrawLine(
+            transform.position + Vector3.up * 0.5f,
+            player.position
+        );
+
+        Vector3 origin = transform.position + Vector3.up * 1.5f;
+        Gizmos.color = Color.yellow;
+
+        Vector3 leftBoundary = Quaternion.Euler(0, -visionAngle, 0) * transform.forward;
+        Vector3 rightBoundary = Quaternion.Euler(0, visionAngle, 0) * transform.forward;
+
+        Gizmos.DrawLine(origin, origin + leftBoundary * visionRange);
+        Gizmos.DrawLine(origin, origin + rightBoundary * visionRange);
+    }
+
+
+
+    void PickRandomPatrolPoint()
+    {
+        if (patrolPoints.Length == 0) return;
+
+        int newIndex;
+        do
+        {
+            newIndex = Random.Range(0, patrolPoints.Length);
+        }
+        while (newIndex == currentPatrolIndex && patrolPoints.Length > 1);
+
+        currentPatrolIndex = newIndex;
     }
 }

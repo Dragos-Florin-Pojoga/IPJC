@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 using System.Collections;
 using UnityEngine.InputSystem;
 using System.Linq;
@@ -6,57 +7,41 @@ using System;
 using Random = UnityEngine.Random;
 using static UnityEngine.UI.Image;
 
-public class JumperEnemyController: MonoBehaviour
+[RequireComponent(typeof(NavMeshAgent))]
+public class JumperEnemyController : MonoBehaviour
 {
-
+    [Header("NavMesh")]
+    private NavMeshAgent agent;
 
     [Header("PatrolPoints")]
     [SerializeField] private Transform patrolParent;
     [SerializeField] private float waitTimeAtPoint = 2f;
     [SerializeField] private float arrivalDistance = 0.4f;
 
-
     private bool isWaiting = false;
-
-
     private Transform[] patrolPoints;
     private int currentPatrolIndex = -1;
     private float waitTimer = 0f;
-
-
-
 
     [Header("Vision")]
     [SerializeField] private float visionRange = 15f;
     [SerializeField] private float visionAngle = 60f;
     [SerializeField] private LayerMask visionMask;
-
-
     [SerializeField] private Transform player;
     private bool canSeePlayer = false;
 
-
-
-
-
     [Header("Scan")]
-    [SerializeField] private float scanRotationSpeed = 120f; // grade/sec
+    [SerializeField] private float scanRotationSpeed = 120f;
     [SerializeField] private float scanDuration = 2.5f;
 
     private bool isScanning = false;
     private float scanTimer = 0f;
 
-
-
-
     [SerializeField] private float searchArrivalDistance = 0.8f;
 
-
-
-
+    [Header("Stats")]
     [SerializeField] private float moveSpeed = 1.5f;
-    [SerializeField]
-    private float maxHealth = 100f;
+    [SerializeField] private float maxHealth = 100f;
 
     private float currentHealth;
     private bool isDead = false;
@@ -64,68 +49,63 @@ public class JumperEnemyController: MonoBehaviour
     private Rigidbody rb;
     private Collider col;
 
-    [SerializeField]
-    private FloatingHealthBar healthBar;
+    [SerializeField] private FloatingHealthBar healthBar;
 
+   
+    [Header("Dash")]
+    [Tooltip("Distanta maxima la care poate porni un dash.")]
+    [SerializeField] private float jumpRange = 6f;           
+    [Tooltip("Cooldown intre doua dash-uri.")]
+    [SerializeField] private float jumpCooldown = 1.5f;      
+    [Tooltip("Cat dureaza un dash (secunde).")]
+    [SerializeField] private float dashDuration = 0.4f;
+    [Tooltip("Viteza de baza in chase.")]
+    [SerializeField] private float baseChaseSpeed = 2.5f;
+    [Tooltip("Viteza in timpul dash-ului.")]
+    [SerializeField] private float dashSpeed = 6.0f;
+    [Tooltip("Viteza la patrulare.")]
+    [SerializeField] private float patrolSpeed = 1.5f;
+    [Tooltip("Viteza în Search.")]
+    [SerializeField] private float searchSpeed = 2.0f;
 
-    [SerializeField] private float jumpDelay = 0.7f;
-    [SerializeField] private float jumpForce = 8f;
-    [SerializeField] private float jumpCooldown = 1.5f;
-
-    private bool isPreparingJump = false;
-    private float jumpTimer = 0f;
+    private bool isDashing = false;
+    private float dashTimer = 0f;
     private float jumpCooldownTimer = 0f;
 
-
-
-
-
-    private enum AIState
-    {
-        Patrol,
-        Aggro,
-        Search
-    }
-
+    private enum AIState { Patrol, Aggro, Search }
     [SerializeField] private AIState currentState = AIState.Patrol;
-
-
-
 
     [Header("Aggro")]
     [SerializeField] private float loseAggroDelay = 0.5f;
-
     private float loseAggroTimer = 0f;
-
-
 
     private Vector3 lastSeenPlayerPosition;
     private bool hasLastSeenPosition = false;
-
     private bool reachedLastSeen = false;
 
-
     Animator animator;
-
     [SerializeField] Transform spiderVisual;
 
-
+    [Header("Attack")]
     [SerializeField] private float attackRange = 2.5f;
     [SerializeField] private float attackCooldown = 1.5f;
     private float attackTimer = 0f;
 
-    [SerializeField] private float jumpRange = 6f;
-
-
     void Start()
     {
+        agent = GetComponent<NavMeshAgent>();
         animator = GetComponentInChildren<Animator>();
 
         currentHealth = maxHealth;
         rb = GetComponent<Rigidbody>();
         col = GetComponent<Collider>();
 
-        rb.isKinematic = true;
+        
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+            rb.useGravity = false;
+        }
 
         if (healthBar != null)
             healthBar.UpdateHealthBar(currentHealth, maxHealth);
@@ -134,23 +114,40 @@ public class JumperEnemyController: MonoBehaviour
             .Where(p => p != patrolParent)
             .ToArray();
 
+       
+        agent.updatePosition = true;
+        agent.updateRotation = true;
+
         PickRandomPatrolPoint();
     }
 
 
+    bool HasReachedDestination()
+    {
+        if (!agent.pathPending)
+        {
+            if (agent.remainingDistance <= agent.stoppingDistance)
+            {
+                if (!agent.hasPath || agent.velocity.sqrMagnitude == 0f)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     bool CheckVision()
     {
         if (player == null) return false;
 
-        Vector3 origin = transform.position + Vector3.up * 1.5f;
-        Vector3 toPlayer = (player.position - origin).normalized;
+        Vector3 origin = transform.position + Vector3.up * 1.0f;
+        Vector3 targetPos = player.position + Vector3.up * 1.0f;
 
+        Vector3 toPlayer = (targetPos - origin).normalized;
 
         float angle = Vector3.Angle(transform.forward, toPlayer);
-        if (angle > visionAngle)
-            return false;
-
+        if (angle > visionAngle) return false;
 
         if (Physics.Raycast(origin, toPlayer, out RaycastHit hit, visionRange, visionMask))
         {
@@ -162,30 +159,24 @@ public class JumperEnemyController: MonoBehaviour
         return false;
     }
 
-
-
-
-
     void PatrolBehaviour()
     {
-        moveSpeed = 1f;
+        agent.speed = patrolSpeed;
+
         if (patrolPoints.Length == 0) return;
 
-        Transform target = patrolPoints[currentPatrolIndex];
-        float distance = Vector3.Distance(transform.position, target.position);
+        Vector3 target = patrolPoints[currentPatrolIndex].position;
+        agent.SetDestination(target);
 
-        // ================= ARRIVED =================
-        if (distance < 0.8f)
+        if (HasReachedDestination())
         {
             animator.SetBool("isWalking", false);
-
-            rb.linearVelocity = Vector3.zero;
-
+            agent.isStopped = true;
 
             if (!isScanning)
             {
                 isWaiting = true;
-                waitTimer += Time.fixedDeltaTime;
+                waitTimer += Time.deltaTime;
 
                 if (waitTimer >= waitTimeAtPoint)
                 {
@@ -194,128 +185,48 @@ public class JumperEnemyController: MonoBehaviour
                     isScanning = true;
                     scanTimer = 0f;
                 }
-
                 return;
             }
-
 
             if (isScanning)
             {
+                transform.Rotate(Vector3.up, scanRotationSpeed * Time.deltaTime);
+                scanTimer += Time.deltaTime;
 
-                // daca vede player-ul => STOP TOTAL
                 if (CheckVision())
                 {
-                    Debug.Log("Player spotted during scan!");
-                    rb.linearVelocity = Vector3.zero;
                     return;
                 }
 
-
-                // se roteste
-                transform.Rotate(Vector3.up, scanRotationSpeed * Time.fixedDeltaTime);
-                scanTimer += Time.fixedDeltaTime;
-
-
-                // a terminat scanarea
                 if (scanTimer >= scanDuration)
                 {
                     isScanning = false;
+                    agent.isStopped = false;
                     PickRandomPatrolPoint();
                 }
-
                 return;
             }
         }
-
-        // ================= MOVING =================
-        if (!isWaiting && !isScanning)
+        else
         {
-            MoveTowards(target.position, moveSpeed);
+            agent.isStopped = false;
+            animator.SetBool("isWalking", true);
         }
     }
-
-
-    IEnumerator ResetKinematic()
-    {
-        yield return new WaitForSeconds(1f);
-        if (rb != null && !isDead)
-        {
-            rb.isKinematic = true;
-        }
-            
-    }
-
-
-    void JumpTowardsPlayer()
-    {
-        if (rb == null || player == null) return;
-
-        // Temporarily set isKinematic to false to allow physics-based jump
-        rb.isKinematic = false;
-
-        Vector3 direction = (player.position - transform.position).normalized;
-        direction.y = 0.5f; // Add upward force for the jump
-
-        rb.AddForce(direction.normalized * jumpForce, ForceMode.VelocityChange);
-
-        // Optionally, set isKinematic back to true after a short delay if needed
-        StartCoroutine(ResetKinematic());
-    }
-
-
 
     void AggroBehaviour()
     {
         if (isDead) return;
+        if (player == null) return;
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        // ===========================
-        // 1. SPECIAL ATTACK: JUMP
-        // ===========================
-        if (isPreparingJump)
-        {
-            rb.linearVelocity = Vector3.zero;
-
-            animator.SetBool("isWalking", false);
-
-            jumpTimer += Time.fixedDeltaTime;
-
-            if (jumpTimer >= jumpDelay)
-            {
-                JumpTowardsPlayer();
-                isPreparingJump = false;
-                jumpTimer = 0f;
-                jumpCooldownTimer = 0f;
-            }
-
-            return;
-        }
-
-        jumpCooldownTimer += Time.fixedDeltaTime;
-
-        // Jump trigger logic
-        if (distanceToPlayer < jumpRange && jumpCooldownTimer >= jumpCooldown)
-        {
-            isPreparingJump = true;
-            jumpTimer = 0f;
-            rb.linearVelocity = Vector3.zero;
-
-            animator.SetBool("isWalking", false);
-
-            animator.SetTrigger("isAttacking"); // OPTIONAL
-            return;
-        }
-
-        // ===========================
-        // 2. NORMAL ATTACK: MELEE
-        // ===========================
-        attackTimer += Time.fixedDeltaTime;
+       
+        attackTimer += Time.deltaTime;
 
         if (distanceToPlayer <= attackRange)
         {
-            rb.linearVelocity = Vector3.zero;
-
+            agent.isStopped = true;
             animator.SetBool("isWalking", false);
 
             Vector3 dir = player.position - transform.position;
@@ -325,7 +236,7 @@ public class JumperEnemyController: MonoBehaviour
                 transform.rotation = Quaternion.Slerp(
                     transform.rotation,
                     Quaternion.LookRotation(dir),
-                    10f * Time.fixedDeltaTime
+                    10f * Time.deltaTime
                 );
             }
 
@@ -338,17 +249,50 @@ public class JumperEnemyController: MonoBehaviour
             return;
         }
 
-        // ===========================
-        // 3. MOVE/FOLLOW
-        // ===========================
-        moveSpeed = 2.5f;
-        MoveTowards(player.position, moveSpeed);
+        
+        agent.isStopped = false;
+        animator.SetBool("isWalking", true);
+
+        // update cooldown
+        jumpCooldownTimer += Time.deltaTime;
+
+        if (isDashing)
+        {
+            dashTimer += Time.deltaTime;
+            
+            agent.speed = dashSpeed;
+            agent.SetDestination(player.position);
+
+            if (dashTimer >= dashDuration)
+            {
+                isDashing = false;
+                agent.speed = baseChaseSpeed;
+            }
+        }
+        else
+        {
+           
+            if (distanceToPlayer < jumpRange && jumpCooldownTimer >= jumpCooldown)
+            {
+                isDashing = true;
+                dashTimer = 0f;
+                jumpCooldownTimer = 0f;
+                agent.speed = dashSpeed;
+
+               
+                agent.SetDestination(player.position);
+
+               
+                animator.SetTrigger("isAttacking");
+            }
+            else
+            {
+               
+                agent.speed = baseChaseSpeed;
+                agent.SetDestination(player.position);
+            }
+        }
     }
-
-
-
-
-
 
     void SearchBehaviour()
     {
@@ -358,80 +302,60 @@ public class JumperEnemyController: MonoBehaviour
             return;
         }
 
-        // ================= MOVE =================
+        agent.speed = searchSpeed;
+
         if (!reachedLastSeen)
         {
-            float dist = Vector3.Distance(transform.position, lastSeenPlayerPosition);
+            agent.isStopped = false;
+            agent.SetDestination(lastSeenPlayerPosition);
+            animator.SetBool("isWalking", true);
 
-            if (dist > searchArrivalDistance)
+            if (HasReachedDestination())
             {
-                MoveTowards(lastSeenPlayerPosition, moveSpeed);
+                reachedLastSeen = true;
+                agent.isStopped = true;
+                animator.SetBool("isWalking", false);
+            }
+        }
+        else
+        {
+            if (!isScanning)
+            {
+                isScanning = true;
+                scanTimer = 0f;
+            }
+
+            transform.Rotate(Vector3.up, scanRotationSpeed * Time.deltaTime);
+            scanTimer += Time.deltaTime;
+
+            if (CheckVision())
+            {
+                reachedLastSeen = false;
+                currentState = AIState.Aggro;
                 return;
             }
 
-            // ARRIVAL
-            reachedLastSeen = true;
-        }
-
-        rb.linearVelocity = Vector3.zero;
-
-        // ================= SCAN =================
-        if (!isScanning)
-        {
-            isScanning = true;
-            scanTimer = 0f;
-        }
-
-        animator.SetBool("isWalking", false);
-
-        transform.Rotate(Vector3.up, scanRotationSpeed * Time.fixedDeltaTime);
-        scanTimer += Time.fixedDeltaTime;
-
-        if (CheckVision())
-        {
-            Debug.Log("Player found again!");
-            reachedLastSeen = false;
-            currentState = AIState.Aggro;
-            return;
-        }
-
-        if (scanTimer >= scanDuration)
-        {
-            Debug.Log("Search failed -> PATROL");
-            isScanning = false;
-            reachedLastSeen = false;
-            hasLastSeenPosition = false;
-            currentState = AIState.Patrol;
-            PickRandomPatrolPoint();
+            if (scanTimer >= scanDuration)
+            {
+                isScanning = false;
+                reachedLastSeen = false;
+                hasLastSeenPosition = false;
+                currentState = AIState.Patrol;
+                PickRandomPatrolPoint();
+            }
         }
     }
 
-
-
-
-
-    void FixedUpdate()
+    void SwitchToAggro()
     {
-        if (isDead) return;
-
-        switch (currentState)
-        {
-            case AIState.Patrol:
-                PatrolBehaviour();
-                break;
-
-            case AIState.Aggro:
-                AggroBehaviour();
-                break;
-
-            case AIState.Search:
-                SearchBehaviour();
-                break;
-        }
-
+        currentState = AIState.Aggro;
+        isWaiting = false;
+        isScanning = false;
+        reachedLastSeen = false;
+        
+        isDashing = false;
+        dashTimer = 0f;
     }
-
-
 
     void PickRandomPatrolPoint()
     {
@@ -447,29 +371,9 @@ public class JumperEnemyController: MonoBehaviour
         currentPatrolIndex = newIndex;
     }
 
-
-    void MoveTowards(Vector3 target, float speed)
-    {
-        Vector3 flatTarget = new Vector3(
-            target.x,
-            transform.position.y,
-            target.z
-        );
-
-        Vector3 direction = (flatTarget - transform.position).normalized;
-        Vector3 newPos = rb.position + direction * speed * Time.fixedDeltaTime;
-
-        rb.MovePosition(newPos);
-        animator.SetBool("isWalking", true);
-
-        if (direction != Vector3.zero)
-            transform.rotation = Quaternion.LookRotation(direction);
-    }
-
-
     void OnDrawGizmos()
     {
-        if (patrolParent == null) return;
+        if (patrolParent == null || player == null) return;
 
         Gizmos.color = Color.cyan;
         foreach (Transform p in patrolParent)
@@ -491,8 +395,6 @@ public class JumperEnemyController: MonoBehaviour
         Gizmos.DrawLine(origin, origin + rightBoundary * visionRange);
     }
 
-
-
     public void Update()
     {
         if (isDead) return;
@@ -503,8 +405,6 @@ public class JumperEnemyController: MonoBehaviour
             TakeDamage(25f);
         }
 
-        //bool seesPlayer = CheckVision();
-
         canSeePlayer = CheckVision();
         bool seesPlayer = canSeePlayer;
 
@@ -514,29 +414,42 @@ public class JumperEnemyController: MonoBehaviour
                 if (seesPlayer)
                 {
                     Debug.Log("ENTER AGGRO");
-                    currentState = AIState.Aggro;
-                    isWaiting = false;
-                    isScanning = false;
+                    SwitchToAggro();
+                }
+                else
+                {
+                    PatrolBehaviour();
                 }
                 break;
 
             case AIState.Aggro:
                 if (seesPlayer)
                 {
-
-
                     lastSeenPlayerPosition = player.position;
-                    //because the player can be mid-air, the enemy can't reach the location => will be stuck there
-                    lastSeenPlayerPosition.y = transform.position.y;
 
+                    
+                    NavMeshHit hit;
+                    if (NavMesh.SamplePosition(lastSeenPlayerPosition, out hit, 2.0f, NavMesh.AllAreas))
+                    {
+                        lastSeenPlayerPosition = hit.position;
+                    }
 
                     hasLastSeenPosition = true;
                     loseAggroTimer = 0f;
 
+                    AggroBehaviour();
                 }
                 else
                 {
+  
+                    agent.isStopped = false;
+                    animator.SetBool("isWalking", true);
+
                     loseAggroTimer += Time.deltaTime;
+
+                    if (hasLastSeenPosition)
+                        agent.SetDestination(lastSeenPlayerPosition);
+
                     if (loseAggroTimer >= loseAggroDelay)
                     {
                         Debug.Log("Lost player -> SEARCH");
@@ -546,25 +459,27 @@ public class JumperEnemyController: MonoBehaviour
                 }
                 break;
 
-
             case AIState.Search:
                 if (seesPlayer)
                 {
                     Debug.Log("SEARCH -> AGGRO");
-                    currentState = AIState.Aggro;
-
-                    reachedLastSeen = false;
-                    isScanning = false;
-                    loseAggroTimer = 0f;
+                    SwitchToAggro();
 
                     lastSeenPlayerPosition = player.position;
-                    lastSeenPlayerPosition.y = transform.position.y;
+                    NavMeshHit hit;
+                    if (NavMesh.SamplePosition(lastSeenPlayerPosition, out hit, 2.0f, NavMesh.AllAreas))
+                    {
+                        lastSeenPlayerPosition = hit.position;
+                    }
+
                     hasLastSeenPosition = true;
+                }
+                else
+                {
+                    SearchBehaviour();
                 }
                 break;
         }
-
-
     }
 
     public void TakeDamage(float damage)
@@ -581,8 +496,6 @@ public class JumperEnemyController: MonoBehaviour
             Die();
     }
 
-
-
     IEnumerator EnableCorpseCollider()
     {
         Quaternion startRot = spiderVisual.rotation;
@@ -598,22 +511,30 @@ public class JumperEnemyController: MonoBehaviour
             yield return null;
         }
 
+        if (col != null)
+            col.enabled = true;
 
-        col.enabled = true;
-        rb.isKinematic = true;
-
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+        }
     }
-
 
     private void Die()
     {
         isDead = true;
 
-        rb.isKinematic = true;
-        rb.useGravity = false;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        rb.constraints = RigidbodyConstraints.None;
+        if (agent != null)
+            agent.enabled = false;
+
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+            rb.useGravity = false;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.constraints = RigidbodyConstraints.None;
+        }
 
         if (col != null)
             col.enabled = false;
@@ -623,9 +544,6 @@ public class JumperEnemyController: MonoBehaviour
         StartCoroutine(DestroyAfterDelay(5f));
         StartCoroutine(EnableCorpseCollider());
     }
-
-
-
 
     private IEnumerator DestroyAfterDelay(float delay)
     {
