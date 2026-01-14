@@ -41,12 +41,9 @@ public class EnemyController : MonoBehaviour
     // searchArrivalDistance gestionat de agent
 
     [Header("Stats")]
-    [SerializeField] private float maxHealth = 100f;
-    private float currentHealth;
     private bool isDead = false;
 
     private Collider col;
-    [SerializeField] private FloatingHealthBar healthBar;
 
     private enum AIState { Patrol, Aggro, Search }
     [SerializeField] private AIState currentState = AIState.Patrol;
@@ -70,14 +67,10 @@ public class EnemyController : MonoBehaviour
         agent = GetComponent<NavMeshAgent>(); // Initializare NavMesh
         animator = GetComponentInChildren<Animator>();
         col = GetComponent<Collider>();
-        currentHealth = maxHealth;
 
         // Configurare Agent
         agent.updateRotation = true; // Lasa agentul sa se roteasca singur cand merge
         agent.updatePosition = true;
-
-        if (healthBar != null)
-            healthBar.UpdateHealthBar(currentHealth, maxHealth);
 
         patrolPoints = patrolParent.GetComponentsInChildren<Transform>()
             .Where(p => p != patrolParent)
@@ -272,11 +265,6 @@ public class EnemyController : MonoBehaviour
     {
         if (isDead) return;
 
-        // Debug Input
-        if (Keyboard.current.hKey.wasPressedThisFrame) TakeDamage(25f);
-
-
-
 
         canSeePlayer = CheckVision();
 
@@ -381,24 +369,6 @@ public class EnemyController : MonoBehaviour
         }
         return false;
     }
-
-
-
-    public void TakeDamage(float damage)
-    {
-        if (isDead) return;
-
-        currentHealth -= damage;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-
-        if (healthBar != null)
-            healthBar.UpdateHealthBar(currentHealth, maxHealth);
-
-        if (currentHealth <= 0)
-            Die();
-    }
-
-
 
     IEnumerator EnableCorpseCollider()
     {

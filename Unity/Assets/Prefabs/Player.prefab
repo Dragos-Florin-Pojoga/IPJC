@@ -216,7 +216,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 458807
+    m_Bits: 2032439
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -406,12 +406,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a7577f9261a13c3ee90f796171c37494, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mainCamera: {fileID: 5345479528470973352}
   currentWeapon: {fileID: 0}
   currentItem: {fileID: 0}
   aimRaycastDistance: 100
   m_statController: {fileID: 3810551892565371957}
-  weaponHolder: {fileID: 5690107842914386771}
 --- !u!114 &6309236595547580752
 MonoBehaviour:
   m_ObjectHideFlags: 0

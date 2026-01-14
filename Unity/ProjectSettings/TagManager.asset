@@ -24,8 +24,8 @@ TagManager:
   - Player_Collider
   - Player_Projectiles
   - Enemy
-  - 
-  - 
+  - Enemy_Projectiles
+  - Destructible_Prop
   - 
   - 
   - 

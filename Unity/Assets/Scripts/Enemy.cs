@@ -1,16 +1,17 @@
-/////////////////////////////////
-// WIP / VERY EXPERIMENTAL !!! //
-/////////////////////////////////
-
 using UnityEngine;
 
-// An example implementation of an enemy that can be damaged.
-// TODO: Could this be more generic and be an inteface?????
-// TODO: Health bar?
+/// <summary>
+/// Example implementation of a damageable enemy.
+/// Implements IDamageable to receive damage from projectiles and contact damage.
+/// </summary>
 [RequireComponent(typeof(StatController))]
 public class Enemy : MonoBehaviour, IDamageable
 {
-    public DamagePopup damagePopupPrefab;
+    // [Tooltip("Prefab for floating damage numbers")]
+    // prefab is taken from the prefab directory
+    private DamagePopup damagePopupPrefab;
+    
+    [Tooltip("Height offset for damage popup spawn")]
     public float popupHeight = 1.4f;
 
     private StatController m_stats;
@@ -18,26 +19,43 @@ public class Enemy : MonoBehaviour, IDamageable
     void Awake()
     {
         m_stats = GetComponent<StatController>();
+        damagePopupPrefab = Resources.Load<DamagePopup>("Prefabs/Damage_Popup");
+    }
+
+    void Start()
+    {
+        // Subscribe in Start() to ensure StatController.Awake() has initialized m_resources
+        FloatingHealthBar floatingHealthBar = transform.GetComponentInChildren<FloatingHealthBar>();
+        if (floatingHealthBar != null) {
+            Debug.Log($"FloatingHealthBar found on {gameObject.name}");
+            m_stats.SubscribeToResource(StatType.Health, floatingHealthBar.UpdateHealthBar);
+        }
     }
     
-    public StatController GetStatController() { return m_stats; }
-    public Transform GetTransform() { return transform; }
+    /// <inheritdoc/>
+    public StatController GetStatController() => m_stats;
+    
+    /// <inheritdoc/>
+    public Transform GetTransform() => transform;
 
+    /// <inheritdoc/>
     public void TakeHit(HitContext context)
     {
         FinalDamageResult result = DamageCalculator.CalculateHit(context);
         
-        Debug.Log($"{gameObject.name} took {result.TotalDamage} damage ({ (result.WasCritical ? "CRIT!" : "") }), {m_stats.GetCurrentStatValue(StatType.Health)} -> {m_stats.GetCurrentStatValue(StatType.Health) - result.TotalDamage} health remaining.");
+        float healthBefore = m_stats.GetCurrentValue(StatType.Health);
+        
+        Debug.Log($"{gameObject.name} took {result.TotalDamage} damage ({(result.WasCritical ? "CRIT!" : "")}), {healthBefore} -> {healthBefore - result.TotalDamage} health remaining.");
 
         SpawnDamagePopup(result.TotalDamage, result.WasCritical);
 
-        m_stats.SubtractCurrentStatValue(StatType.Health, result.TotalDamage, context.Target);
+        m_stats.ModifyResource(StatType.Health, -result.TotalDamage);
 
         foreach (var app in context.StatusEffects) {
             app.Effect.Apply(m_stats); 
         }
 
-        if (m_stats.GetCurrentStatValue(StatType.Health) <= 0) {
+        if (m_stats.GetCurrentValue(StatType.Health) <= 0) {
             Destroy(gameObject);
         }
     }
@@ -47,7 +65,6 @@ public class Enemy : MonoBehaviour, IDamageable
         if (damagePopupPrefab == null) return;
 
         Vector3 position = transform.position + Vector3.up * popupHeight;
-
         var popup = Instantiate(damagePopupPrefab, position, Quaternion.identity);
         popup.SetDamage(amount, crit);
     }

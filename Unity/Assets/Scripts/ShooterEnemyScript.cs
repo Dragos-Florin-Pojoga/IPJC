@@ -36,12 +36,9 @@ public class ShooterEnemyController : MonoBehaviour
     private float scanTimer = 0f;
 
     [Header("Stats")]
-    [SerializeField] private float maxHealth = 100f;
-    private float currentHealth;
     private bool isDead = false;
 
     private Collider col;
-    [SerializeField] private FloatingHealthBar healthBar;
 
     private enum AIState { Patrol, Aggro, Search }
     [SerializeField] private AIState currentState = AIState.Patrol;
@@ -70,10 +67,6 @@ public class ShooterEnemyController : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         animator = GetComponent<Animator>();
         col = GetComponent<Collider>();
-
-        currentHealth = maxHealth;
-        if (healthBar != null)
-            healthBar.UpdateHealthBar(currentHealth, maxHealth);
 
         patrolPoints = patrolParent.GetComponentsInChildren<Transform>()
             .Where(p => p != patrolParent)
@@ -315,9 +308,6 @@ public class ShooterEnemyController : MonoBehaviour
     {
         if (isDead) return;
 
-        if (Keyboard.current.hKey.wasPressedThisFrame)
-            TakeDamage(25f);
-
         canSeePlayer = CheckVision();
         bool seesPlayer = canSeePlayer;
 
@@ -371,18 +361,6 @@ public class ShooterEnemyController : MonoBehaviour
                 break;
         }
     }
-
-    public void TakeDamage(float dmg)
-    {
-        if (isDead) return;
-
-        currentHealth -= dmg;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, maxHealth);
-
-        if (currentHealth <= 0) Die();
-    }
-
     private void Die()
     {
         isDead = true;

@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(CharacterController))]
-public class PlayerControllerClean : MonoBehaviour
+[RequireComponent(typeof(StatController))]
+public class PlayerControllerClean : MonoBehaviour, IDamageable
 {
     [Header("Movement Settings")]
     [SerializeField] private float m_walkSpeed = 5f;
@@ -21,16 +22,58 @@ public class PlayerControllerClean : MonoBehaviour
     // The FPV Camera should be a child object of the PlayerController object
     [SerializeField] private Transform m_fpvCameraTransform;
 
+    [Header("Damage Settings")]
+    [SerializeField] private float m_invincibilityDuration = 0.5f;
+
     private CharacterController m_characterController;
     private PlayerControls m_controls;
+    private StatController m_stats;
 
     private Vector3 m_velocity;
     private float m_xRotation = 0f;
     private int m_jumpCount = 0;
+    private float m_invincibilityTimer = 0f;
+
+    // IDamageable implementation
+    public StatController GetStatController() => m_stats;
+    public Transform GetTransform() => transform;
+
+    public void TakeHit(HitContext context)
+    {
+        // Check invincibility frames
+        if (m_invincibilityTimer > 0f) return;
+
+        FinalDamageResult result = DamageCalculator.CalculateHit(context);
+
+        float healthBefore = m_stats.GetCurrentValue(StatType.Health);
+        Debug.Log($"Player took {result.TotalDamage} damage{(result.WasCritical ? " (CRIT!)" : "")}, health: {healthBefore} -> {healthBefore - result.TotalDamage}");
+
+        m_stats.ModifyResource(StatType.Health, -result.TotalDamage);
+
+        // Apply status effects
+        foreach (var app in context.StatusEffects) {
+            app.Effect.Apply(m_stats);
+        }
+
+        // Start invincibility frames
+        m_invincibilityTimer = m_invincibilityDuration;
+
+        // Check death
+        if (m_stats.GetCurrentValue(StatType.Health) <= 0f) {
+            OnPlayerDeath();
+        }
+    }
+
+    private void OnPlayerDeath()
+    {
+        Debug.Log("Player has died!");
+        // TODO: Implement death handling (respawn, game over screen, etc.)
+    }
 
     private void Awake()
     {
         m_characterController = GetComponent<CharacterController>();
+        m_stats = GetComponent<StatController>();
 
         m_controls = new PlayerControls();
 
@@ -54,12 +97,18 @@ public class PlayerControllerClean : MonoBehaviour
 
     private void Update()
     {
+        // Tick invincibility
+        if (m_invincibilityTimer > 0f) {
+            m_invincibilityTimer -= Time.deltaTime;
+        }
+
         HandleGroundCheck();
         HandleJump();
         HandleLook();
         HandleMovement();
         HandleGravity();
     }
+
 
     private void HandleJump()
     {
@@ -125,5 +174,15 @@ public class PlayerControllerClean : MonoBehaviour
         m_velocity.y += m_gravity * Time.deltaTime;
 
         m_characterController.Move(m_velocity * Time.deltaTime);
+    }
+
+    // Called when CharacterController collides with a collider (handles contact damage from non-trigger colliders)
+    void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        // Check if the object we hit has a ContactDamageDealer
+        if (hit.gameObject.TryGetComponent<ContactDamageDealer>(out var dealer)) {
+            // Let the dealer handle the damage through its public method
+            dealer.DealDamageTo(this);
+        }
     }
 }

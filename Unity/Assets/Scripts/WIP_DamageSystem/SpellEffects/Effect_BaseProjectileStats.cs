@@ -8,7 +8,7 @@ public class Effect_BaseProjectileStats : SpellEffect
     public float size = 0.1f;
     public float tickRate = 0.5f;
 
-    public override void Initialize(Projectile projectile)
+    public override void Initialize(IProjectile projectile)
     {
         projectile.SetStats(speed, lifetime, size, tickRate);
     }

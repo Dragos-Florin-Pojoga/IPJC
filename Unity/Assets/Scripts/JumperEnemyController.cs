@@ -41,15 +41,10 @@ public class JumperEnemyController : MonoBehaviour
 
     [Header("Stats")]
     [SerializeField] private float moveSpeed = 1.5f;
-    [SerializeField] private float maxHealth = 100f;
-
-    private float currentHealth;
     private bool isDead = false;
 
     private Rigidbody rb;
     private Collider col;
-
-    [SerializeField] private FloatingHealthBar healthBar;
 
    
     [Header("Dash")]
@@ -96,7 +91,6 @@ public class JumperEnemyController : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         animator = GetComponentInChildren<Animator>();
 
-        currentHealth = maxHealth;
         rb = GetComponent<Rigidbody>();
         col = GetComponent<Collider>();
 
@@ -107,8 +101,6 @@ public class JumperEnemyController : MonoBehaviour
             rb.useGravity = false;
         }
 
-        if (healthBar != null)
-            healthBar.UpdateHealthBar(currentHealth, maxHealth);
 
         patrolPoints = patrolParent.GetComponentsInChildren<Transform>()
             .Where(p => p != patrolParent)
@@ -402,12 +394,6 @@ public class JumperEnemyController : MonoBehaviour
     {
         if (isDead) return;
 
-        if (Keyboard.current.hKey.wasPressedThisFrame)
-        {
-            Debug.Log("Enemy takes damage!");
-            TakeDamage(25f);
-        }
-
         canSeePlayer = CheckVision();
         bool seesPlayer = canSeePlayer;
 
@@ -483,20 +469,6 @@ public class JumperEnemyController : MonoBehaviour
                 }
                 break;
         }
-    }
-
-    public void TakeDamage(float damage)
-    {
-        if (isDead) return;
-
-        currentHealth -= damage;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-
-        if (healthBar != null)
-            healthBar.UpdateHealthBar(currentHealth, maxHealth);
-
-        if (currentHealth <= 0)
-            Die();
     }
 
     IEnumerator EnableCorpseCollider()

@@ -6,7 +6,7 @@ public class Effect_AddDamagePercent : SpellEffect
     public float percentBonus = 5;
     public DamageType type;
 
-    public override void OnCompileHit(Projectile projectile, HitContext context)
+    public override void OnCompileHit(IProjectile projectile, HitContext context)
     {
         foreach (var damage in context.Damages)
         {

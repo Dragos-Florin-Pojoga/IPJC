@@ -131,7 +131,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f1ac982eef26709039e85a8519f8933a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  baseSpell: {fileID: 11400000, guid: ccdf83045f3c1cd119734437e4a50e5a, type: 2}
+  baseSpell: {fileID: 11400000, guid: a99ce7b8c262bc9189c4b1f71f0478ab, type: 2}
   modifierEffects: []
   spawnPoint: {fileID: 4710585853579779409}
 --- !u!1 &1371396057146892615

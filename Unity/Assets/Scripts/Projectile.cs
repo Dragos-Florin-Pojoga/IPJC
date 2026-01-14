@@ -1,30 +1,37 @@
-/////////////////////////////////
-// WIP / VERY EXPERIMENTAL !!! //
-/////////////////////////////////
-
 using UnityEngine;
 using System.Collections.Generic;
 
-public class Projectile : MonoBehaviour
+/// <summary>
+/// Player projectile that travels in a direction and applies SpellEffects on hit.
+/// Instantiated by weapons and initialized with effects from a SpellDefinition.
+/// </summary>
+public class Projectile : MonoBehaviour, IProjectile
 {
-    // --- Stats ---
     private float m_speed = 0.0f;
     private float m_lifetime = 0.0f;
     private float m_spawnTime;
-    public Vector3 Direction { get; private set; }
-    
-    // --- Periodic Tick ---
     private float m_tickRate = float.MaxValue;
     private float m_nextTickTime;
-
-    // --- References ---
-    private List<SpellEffect> m_runtimeEffects = new List<SpellEffect>();
-    private StatController m_ownerStats;
-    public StatController OwnerStats => m_ownerStats;
-
     private bool m_isDestroyed = false;
 
-    // Initializes the projectile. Called by the Weapon.
+    private List<SpellEffect> m_runtimeEffects = new List<SpellEffect>();
+    private StatController m_ownerStats;
+
+    /// <inheritdoc/>
+    public Vector3 Direction { get; private set; }
+    
+    /// <inheritdoc/>
+    public StatController OwnerStats => m_ownerStats;
+    
+    /// <inheritdoc/>
+    public Transform Transform => transform;
+
+    /// <summary>
+    /// Initializes the projectile with effects and direction. Called by the weapon.
+    /// </summary>
+    /// <param name="effects">Runtime-cloned SpellEffects</param>
+    /// <param name="direction">Initial flight direction</param>
+    /// <param name="ownerStats">Owner's StatController for damage calculation</param>
     public void Initialize(List<SpellEffect> effects, Vector3 direction, StatController ownerStats)
     {
         m_runtimeEffects = effects;
@@ -39,7 +46,7 @@ public class Projectile : MonoBehaviour
         }
     }
 
-    // Called by effects
+    /// <inheritdoc/>
     public void SetStats(float speed, float lifetime, float size, float tickRate)
     {
         m_speed = speed;
@@ -48,7 +55,7 @@ public class Projectile : MonoBehaviour
         m_tickRate = tickRate;
     }
     
-    // Called by effects that modify flight path
+    /// <inheritdoc/>
     public void SetDirection(Vector3 newDirection)
     {
         Direction = newDirection.normalized;
@@ -57,7 +64,6 @@ public class Projectile : MonoBehaviour
 
     void Update()
     {
-        Debug.DrawLine(transform.position, transform.position + transform.forward * 2, Color.red, 0.1f, false);
         if (m_isDestroyed) return;
 
         transform.position += Direction * m_speed * Time.deltaTime;
