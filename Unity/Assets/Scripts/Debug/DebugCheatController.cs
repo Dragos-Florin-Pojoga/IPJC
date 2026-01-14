@@ -7,6 +7,7 @@ using UnityEngine.SceneManagement;
 /// Uses numpad keys for various debug functions.
 /// 
 /// Controls:
+///   Numpad 4 - Randomize player's current spell
 ///   Numpad 7 - Toggle God Mode (constant healing)
 ///   Numpad 8 - Previous scene (by build index)
 ///   Numpad 9 - Next scene (by build index)
@@ -19,9 +20,12 @@ public class DebugCheatController : MonoBehaviour
     
     private bool m_godModeActive = false;
     private StatController m_playerStats;
+    private PlayerWeaponController m_weaponController;
     
     private GUIStyle m_labelStyle;
     private bool m_isPaused = false;
+    private bool m_hasRandomSpell = false;
+    private string m_randomSpellInfo = "";
     
     void Start()
     {
@@ -41,12 +45,20 @@ public class DebugCheatController : MonoBehaviour
                 m_playerStats = playerController.GetComponent<StatController>();
             }
         }
+        
+        // Find weapon controller for random spell cheat
+        m_weaponController = FindFirstObjectByType<PlayerWeaponController>();
     }
     
     void Update()
     {
         var keyboard = Keyboard.current;
         if (keyboard == null) return;
+        
+        // Numpad 4 - Randomize Spell
+        if (keyboard.numpad4Key.wasPressedThisFrame) {
+            RandomizeSpell();
+        }
         
         // Numpad 7 - Toggle God Mode
         if (keyboard.numpad7Key.wasPressedThisFrame) {
@@ -83,6 +95,33 @@ public class DebugCheatController : MonoBehaviour
     {
         m_godModeActive = !m_godModeActive;
         Debug.Log($"God Mode: {(m_godModeActive ? "ON" : "OFF")}");
+    }
+    
+    private void RandomizeSpell()
+    {
+        if (m_weaponController == null) {
+            m_weaponController = FindFirstObjectByType<PlayerWeaponController>();
+        }
+        
+        if (m_weaponController == null || m_weaponController.currentWeapon == null) {
+            Debug.LogWarning("[DebugCheats] No weapon equipped to randomize!");
+            return;
+        }
+        
+        var weapon = m_weaponController.currentWeapon;
+        if (weapon.baseSpell == null || weapon.baseSpell.projectilePrefab == null) {
+            Debug.LogWarning("[DebugCheats] Weapon has no base spell or projectile prefab!");
+            return;
+        }
+        
+        // Generate and apply random spell
+        var prefab = weapon.baseSpell.projectilePrefab;
+        weapon.baseSpell = RandomSpellGenerator.GenerateRandomSpell(prefab);
+        
+        m_hasRandomSpell = true;
+        m_randomSpellInfo = RandomSpellGenerator.GetSpellSummary(weapon.baseSpell);
+        
+        Debug.Log($"[DebugCheats] Randomized spell applied!\n{m_randomSpellInfo}");
     }
     
     private void LoadPreviousScene()
@@ -128,7 +167,7 @@ public class DebugCheatController : MonoBehaviour
     void OnGUI()
     {
         // Show status in top-left corner
-        if (!m_godModeActive && !m_isPaused) return;
+        if (!m_godModeActive && !m_isPaused && !m_hasRandomSpell) return;
         
         if (m_labelStyle == null) {
             m_labelStyle = new GUIStyle(GUI.skin.label);
@@ -147,6 +186,18 @@ public class DebugCheatController : MonoBehaviour
         if (m_isPaused) {
             m_labelStyle.normal.textColor = Color.yellow;
             GUI.Label(new Rect(10, y, 200, 25), "PAUSED", m_labelStyle);
+            y += 20;
+        }
+        
+        if (m_hasRandomSpell) {
+            m_labelStyle.normal.textColor = Color.magenta;
+            GUI.Label(new Rect(10, y, 300, 25), "RANDOM SPELL", m_labelStyle);
+            y += 20;
+            m_labelStyle.fontSize = 11;
+            m_labelStyle.fontStyle = FontStyle.Normal;
+            GUI.Label(new Rect(10, y, 350, 80), m_randomSpellInfo, m_labelStyle);
+            m_labelStyle.fontSize = 14;
+            m_labelStyle.fontStyle = FontStyle.Bold;
         }
     }
 }

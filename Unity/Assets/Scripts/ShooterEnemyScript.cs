@@ -20,6 +20,10 @@ public class ShooterEnemyController : BaseEnemyAI
     [Tooltip("Height offset to aim at (0.5 = chest, 1.0 = head)")]
     [SerializeField] private float aimHeightOffset = 0.5f;
     
+    [Header("Random Spell (Debug/Variety)")]
+    [Tooltip("If true, generates a random constrained spell on spawn instead of using spellDefinition")]
+    [SerializeField] private bool useRandomSpell = false;
+    
     private float shootTimer = 0f;
     private StatController m_stats;
     private Collider col;
@@ -29,6 +33,12 @@ public class ShooterEnemyController : BaseEnemyAI
         base.Awake();
         m_stats = GetComponent<StatController>();
         col = GetComponent<Collider>();
+        
+        // Generate random spell if enabled
+        if (useRandomSpell && spellDefinition != null && spellDefinition.projectilePrefab != null) {
+            spellDefinition = RandomSpellGenerator.GenerateEnemySpell(spellDefinition.projectilePrefab);
+            Debug.Log($"[{gameObject.name}] Generated random enemy spell");
+        }
     }
     
     protected override void AggroBehavior()
