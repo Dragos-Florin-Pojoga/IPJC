@@ -7,7 +7,7 @@ public class Effect_HitTwice : SpellEffect
     public float secondHitMultiplier = 0.1f;
     public float hitDelay = 0.2f;
 
-    public override void OnHit(Projectile projectile, HitContext originalContext)
+    public override void OnHit(IProjectile projectile, HitContext originalContext)
     {
         // new context for the second hit
         HitContext secondHit = new HitContext(originalContext.Target, originalContext.AttackerStats);

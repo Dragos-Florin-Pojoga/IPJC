@@ -405,6 +405,63 @@ Transform:
   - {fileID: 827799192}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &97738240
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 2804077391939890787, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_Name
+      value: GLOBAL_STUFF
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -5.161206
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 16.181166
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -7.8646526
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3788723299875131126, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 66af1b837a4b4f6eb8fd303cce9f05e2, type: 3}
 --- !u!1 &213195084
 GameObject:
   m_ObjectHideFlags: 0
@@ -1170,7 +1227,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1a318989a4200ef46b410ea48bc4fc45, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  objectToSpawn: {fileID: 4096594873619902805, guid: ab101a9fa3d05164abd21d8f31d4ca5a, type: 3}
+  objectsToSpawn: []
   numberOfCopies: 10
   spawnCooldown: 1
   raiseFromTheGround: 1
@@ -3132,29 +3189,29 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 833639417c499eb4bb9edea925fb8c59, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  currentState: 0
   patrolParent: {fileID: 1693478806}
   waitTimeAtPoint: 2
-  arrivalDistance: 0.4
+  patrolSpeed: 1.5
   visionRange: 15
-  visionAngle: 60
+  visionAngleHorizontal: 60
+  visionAngleVertical: 30
   visionMask:
     serializedVersion: 2
     m_Bits: 768
-  player: {fileID: 1676404255}
+  eyeHeight: 1
+  proximityRadius: 3
   scanRotationSpeed: 120
   scanDuration: 2.5
-  searchArrivalDistance: 0.8
-  moveSpeed: 1.5
-  maxHealth: 100
-  healthBar: {fileID: 1857163797}
-  currentState: 0
-  loseAggroDelay: 0.5
-  projectilePrefab: {fileID: 514375585092279182, guid: f1d7ae2831796ff48b591cb9242be715, type: 3}
+  postSightTrackDuration: 1.5
+  searchSpeed: 2
+  aggroSpeed: 3.5
+  spellDefinition: {fileID: 0}
   shootPoint: {fileID: 781447405}
   shootCooldown: 1.5
   shootRange: 12
-  projectileSpeed: 18
   accuracyDegrees: 7
+  aimHeightOffset: 0.5
 --- !u!4 &1351053599 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7072444061591351794, guid: 910177ec26b76c14996c2d53627a6def, type: 3}
@@ -3821,8 +3878,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bddbf7ba9da75434b8938505fc705ffa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  slider: {fileID: 1857163798}
-  camera: {fileID: 1499755744}
+  healthSlider: {fileID: 0}
+  trailSlider: {fileID: 0}
+  trailDelay: 0.5
+  trailLerpSpeed: 2
 --- !u!114 &1857163798
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4510,3 +4569,4 @@ SceneRoots:
   - {fileID: 3847217182499826879}
   - {fileID: 547674413323313912}
   - {fileID: 777391236}
+  - {fileID: 97738240}

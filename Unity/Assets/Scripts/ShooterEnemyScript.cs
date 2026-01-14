@@ -1,194 +1,62 @@
 using UnityEngine;
-using UnityEngine.AI;
 using System.Collections;
-using UnityEngine.InputSystem;
-using System.Linq;
-using System;
-using Random = UnityEngine.Random;
+using System.Collections.Generic;
 
-[RequireComponent(typeof(NavMeshAgent))]
-public class ShooterEnemyController : MonoBehaviour
+/// <summary>
+/// Shooter enemy AI controller. Extends BaseEnemyAI with ranged attack behavior.
+/// Uses EnemyProjectile and SpellDefinition for proper damage system integration.
+/// </summary>
+[RequireComponent(typeof(StatController))]
+public class ShooterEnemyController : BaseEnemyAI
 {
-    [Header("NavMesh")]
-    private NavMeshAgent agent;
-
-    [Header("PatrolPoints")]
-    [SerializeField] private Transform patrolParent;
-    [SerializeField] private float waitTimeAtPoint = 2f;
-
-    private bool isWaiting = false;
-    private Transform[] patrolPoints;
-    private int currentPatrolIndex = -1;
-    private float waitTimer = 0f;
-
-    [Header("Vision")]
-    [SerializeField] private float visionRange = 15f;
-    [SerializeField] private float visionAngle = 60f;
-    [SerializeField] private LayerMask visionMask;
-    private Transform player;
-    private bool canSeePlayer = false;
-
-    [Header("Scan")]
-    [SerializeField] private float scanRotationSpeed = 120f;
-    [SerializeField] private float scanDuration = 2.5f;
-
-    private bool isScanning = false;
-    private float scanTimer = 0f;
-
-    [Header("Stats")]
-    [SerializeField] private float maxHealth = 100f;
-    private float currentHealth;
-    private bool isDead = false;
-
-    private Collider col;
-    [SerializeField] private FloatingHealthBar healthBar;
-
-    private enum AIState { Patrol, Aggro, Search }
-    [SerializeField] private AIState currentState = AIState.Patrol;
-
-    [Header("Aggro")]
-    [SerializeField] private float loseAggroDelay = 0.5f;
-    private float loseAggroTimer = 0f;
-    private Vector3 lastSeenPlayerPosition;
-    private bool hasLastSeenPosition = false;
-    private bool reachedLastSeen = false;
-
     [Header("Shooting")]
-    [SerializeField] private GameObject projectilePrefab;
+    [Tooltip("The spell definition to fire (projectile + effects)")]
+    [SerializeField] private SpellDefinition spellDefinition;
     [SerializeField] private Transform shootPoint;
     [SerializeField] private float shootCooldown = 1.5f;
     [SerializeField] private float shootRange = 12f;
-    [SerializeField] private float projectileSpeed = 18f;
-    [SerializeField] private float accuracyDegrees = 7f;
-
+    [Tooltip("Accuracy deviation in degrees")]
+    [SerializeField] private float accuracyDegrees = 5f;
+    [Tooltip("Height offset to aim at (0.5 = chest, 1.0 = head)")]
+    [SerializeField] private float aimHeightOffset = 0.5f;
+    
+    [Header("Random Spell (Debug/Variety)")]
+    [Tooltip("If true, generates a random constrained spell on spawn instead of using spellDefinition")]
+    [SerializeField] private bool useRandomSpell = false;
+    
     private float shootTimer = 0f;
-
-    Animator animator;
-
-    void Start()
+    private StatController m_stats;
+    private Collider col;
+    
+    protected override void Awake()
     {
-        agent = GetComponent<NavMeshAgent>();
-        animator = GetComponent<Animator>();
+        base.Awake();
+        m_stats = GetComponent<StatController>();
         col = GetComponent<Collider>();
-
-        currentHealth = maxHealth;
-        if (healthBar != null)
-            healthBar.UpdateHealthBar(currentHealth, maxHealth);
-
-        patrolPoints = patrolParent.GetComponentsInChildren<Transform>()
-            .Where(p => p != patrolParent)
-            .ToArray();
-
-        agent.updateRotation = true;
-        agent.updatePosition = true;
-
-        PickRandomPatrolPoint();
-
-        player = GameObject.Find("Player_Body").transform;
-    }
-
-    bool HasReachedDestination()
-    {
-        if (!agent.pathPending)
-        {
-            if (agent.remainingDistance <= agent.stoppingDistance)
-            {
-                if (!agent.hasPath || agent.velocity.sqrMagnitude == 0f)
-                    return true;
-            }
-        }
-        return false;
-    }
-
-    bool CheckVision()
-    {
-        if (player == null) return false;
-
-        Vector3 origin = transform.position + Vector3.up * 1f;
-        Vector3 targetPos = player.position + Vector3.up * 1f;
-
-        Vector3 toPlayer = (targetPos - origin).normalized;
-
-        if (Vector3.Angle(transform.forward, toPlayer) > visionAngle)
-            return false;
-
-        if (Physics.Raycast(origin, toPlayer, out RaycastHit hit, visionRange, visionMask))
-        {
-            if (hit.collider.transform == player || hit.collider.transform.IsChildOf(player))
-                return true;
-        }
-        return false;
-    }
-
-    void PatrolBehaviour()
-    {
-        agent.speed = 1.5f;
-
-        if (patrolPoints.Length == 0) return;
-
-        agent.SetDestination(patrolPoints[currentPatrolIndex].position);
-
-        if (HasReachedDestination())
-        {
-            animator.SetBool("isWalking", false);
-            agent.isStopped = true;
-
-            if (!isScanning)
-            {
-                isWaiting = true;
-                waitTimer += Time.deltaTime;
-
-                if (waitTimer >= waitTimeAtPoint)
-                {
-                    waitTimer = 0f;
-                    isWaiting = false;
-                    isScanning = true;
-                    scanTimer = 0f;
-                }
-                return;
-            }
-
-            if (isScanning)
-            {
-                transform.Rotate(Vector3.up, scanRotationSpeed * Time.deltaTime);
-                scanTimer += Time.deltaTime;
-
-                if (CheckVision())
-                    return;
-
-                if (scanTimer >= scanDuration)
-                {
-                    isScanning = false;
-                    agent.isStopped = false;
-                    PickRandomPatrolPoint();
-                }
-                return;
-            }
-        }
-        else
-        {
-            animator.SetBool("isWalking", true);
-            agent.isStopped = false;
+        
+        // Generate random spell if enabled
+        if (useRandomSpell && spellDefinition != null && spellDefinition.projectilePrefab != null) {
+            spellDefinition = RandomSpellGenerator.GenerateEnemySpell(spellDefinition.projectilePrefab);
+            Debug.Log($"[{gameObject.name}] Generated random enemy spell");
         }
     }
-
-    void AggroBehaviour()
+    
+    protected override void AggroBehavior()
     {
         if (isDead || player == null) return;
-
-        float dist = Vector3.Distance(transform.position, player.position);
-
-        if (dist <= shootRange)
+        
+        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+        
+        shootTimer += Time.deltaTime;
+        
+        if (distanceToPlayer <= shootRange)
         {
+            // In shooting range - stop and shoot
             agent.isStopped = true;
-            animator.SetBool("isWalking", false);
-
-            Vector3 lookDir = (player.position - transform.position);
-            lookDir.y = 0;
-            if (lookDir != Vector3.zero)
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookDir), 8f * Time.deltaTime);
-
-            shootTimer += Time.deltaTime;
+            if (animator != null) animator.SetBool("isWalking", false);
+            
+            FacePlayer();
+            
             if (shootTimer >= shootCooldown)
             {
                 ShootAtPlayer();
@@ -197,204 +65,87 @@ public class ShooterEnemyController : MonoBehaviour
         }
         else
         {
+            // Move closer to get in range
             agent.isStopped = false;
-            agent.speed = 2.5f;
+            agent.speed = aggroSpeed;
             agent.SetDestination(player.position);
-            animator.SetBool("isWalking", true);
+            if (animator != null) animator.SetBool("isWalking", true);
         }
     }
-
-    void SearchBehaviour()
+    
+    private void ShootAtPlayer()
     {
-        if (!hasLastSeenPosition)
-        {
-            currentState = AIState.Patrol;
+        if (animator != null) animator.SetTrigger("isAttacking");
+        
+        if (spellDefinition == null || spellDefinition.projectilePrefab == null) {
+            Debug.LogWarning($"{gameObject.name}: ShooterEnemyController has no spell definition or projectile prefab!");
             return;
         }
-
-        agent.speed = 2f;
-
-        if (!reachedLastSeen)
-        {
-            agent.SetDestination(lastSeenPlayerPosition);
-            animator.SetBool("isWalking", true);
-
-            if (HasReachedDestination())
-            {
-                reachedLastSeen = true;
-                agent.isStopped = true;
-                animator.SetBool("isWalking", false);
-            }
-        }
-        else
-        {
-            if (!isScanning)
-            {
-                isScanning = true;
-                scanTimer = 0f;
-            }
-
-            transform.Rotate(Vector3.up, scanRotationSpeed * Time.deltaTime);
-            scanTimer += Time.deltaTime;
-
-            if (CheckVision())
-            {
-                reachedLastSeen = false;
-                currentState = AIState.Aggro;
-                return;
-            }
-
-            if (scanTimer >= scanDuration)
-            {
-                isScanning = false;
-                reachedLastSeen = false;
-                hasLastSeenPosition = false;
-                currentState = AIState.Patrol;
-                PickRandomPatrolPoint();
-            }
-        }
-    }
-
-    void ShootAtPlayer()
-    {
-        animator.SetTrigger("isAttacking");
-
-        if (projectilePrefab == null || shootPoint == null || player == null) return;
-
-        Vector3 direction = (player.position + Vector3.up * 1.2f - shootPoint.position).normalized;
+        
+        if (player == null || shootPoint == null) return;
+        
+        Vector3 spawnPos = shootPoint.position;
+        
+        // Aim at player's center mass, not too high
+        Vector3 targetPos = player.position + Vector3.up * aimHeightOffset;
+        Vector3 direction = (targetPos - spawnPos).normalized;
+        
+        // Apply accuracy deviation
         direction = ApplyAccuracy(direction, accuracyDegrees);
-
-        GameObject proj = Instantiate(projectilePrefab, shootPoint.position, Quaternion.LookRotation(direction));
-        Rigidbody rbProj = proj.GetComponent<Rigidbody>();
-        if (rbProj != null)
-            rbProj.linearVelocity = direction * projectileSpeed;
-    }
-
-    Vector3 ApplyAccuracy(Vector3 dir, float max)
-    {
-        float yaw = Random.Range(-max, max);
-        float pitch = Random.Range(-max, max);
-        return Quaternion.Euler(pitch, yaw, 0) * dir;
-    }
-
-    void PickRandomPatrolPoint()
-    {
-        if (patrolPoints.Length == 0) return;
-        int newIndex;
-        do newIndex = Random.Range(0, patrolPoints.Length);
-        while (newIndex == currentPatrolIndex && patrolPoints.Length > 1);
-        currentPatrolIndex = newIndex;
-    }
-
-    void OnDrawGizmos()
-    {
-        if (!Application.isPlaying) return;
-        if (patrolParent == null) return;
-
-        Gizmos.color = Color.cyan;
-        foreach (Transform p in patrolParent)
-            Gizmos.DrawSphere(p.position, 0.25f);
-
-        Gizmos.color = canSeePlayer ? Color.red : Color.green;
-        Gizmos.DrawLine(
-            transform.position + Vector3.up * 0.5f,
-            player.position
-        );
-
-        Vector3 origin = transform.position + Vector3.up * 1.5f;
-        Gizmos.color = Color.yellow;
-
-        Vector3 leftBoundary = Quaternion.Euler(0, -visionAngle, 0) * transform.forward;
-        Vector3 rightBoundary = Quaternion.Euler(0, visionAngle, 0) * transform.forward;
-
-        Gizmos.DrawLine(origin, origin + leftBoundary * visionRange);
-        Gizmos.DrawLine(origin, origin + rightBoundary * visionRange);
-    }
-
-    public void Update()
-    {
-        if (isDead) return;
-
-        if (Keyboard.current.hKey.wasPressedThisFrame)
-            TakeDamage(25f);
-
-        canSeePlayer = CheckVision();
-        bool seesPlayer = canSeePlayer;
-
-        switch (currentState)
-        {
-            case AIState.Patrol:
-                if (seesPlayer)
-                {
-                    currentState = AIState.Aggro;
-                    isWaiting = false;
-                    isScanning = false;
-                }
-                else PatrolBehaviour();
-                break;
-
-            case AIState.Aggro:
-                if (seesPlayer)
-                {
-                    lastSeenPlayerPosition = player.position;
-                    NavMeshHit hit;
-                    if (NavMesh.SamplePosition(lastSeenPlayerPosition, out hit, 2f, NavMesh.AllAreas))
-                        lastSeenPlayerPosition = hit.position;
-
-                    hasLastSeenPosition = true;
-                    loseAggroTimer = 0f;
-                    AggroBehaviour();
-                }
-                else
-                {
-                    loseAggroTimer += Time.deltaTime;
-                    if (loseAggroTimer >= loseAggroDelay)
-                    {
-                        loseAggroTimer = 0f;
-                        currentState = AIState.Search;
-                    }
-                }
-                break;
-
-            case AIState.Search:
-                if (seesPlayer)
-                {
-                    currentState = AIState.Aggro;
-                    reachedLastSeen = false;
-                    isScanning = false;
-                    loseAggroTimer = 0f;
-
-                    lastSeenPlayerPosition = player.position;
-                    hasLastSeenPosition = true;
-                }
-                else SearchBehaviour();
-                break;
+        
+        // Spawn the projectile
+        var projectileObj = Instantiate(spellDefinition.projectilePrefab, spawnPos, Quaternion.LookRotation(direction));
+        
+        // Clone effects for runtime instances
+        List<SpellEffect> runtimeEffects = new List<SpellEffect>();
+        foreach (var effect in spellDefinition.effects) {
+            runtimeEffects.Add(Instantiate(effect));
+        }
+        
+        // Initialize the projectile with the spell system
+        if (projectileObj.TryGetComponent<EnemyProjectile>(out var enemyProj)) {
+            enemyProj.Initialize(runtimeEffects, direction, m_stats);
+        }
+        else if (projectileObj.TryGetComponent<Projectile>(out var playerProj)) {
+            // Fallback to regular Projectile component
+            playerProj.Initialize(runtimeEffects, direction, m_stats);
+        }
+        else {
+            Debug.LogWarning($"{gameObject.name}: Spawned projectile has no Projectile or EnemyProjectile component!");
+            Destroy(projectileObj);
         }
     }
-
-    public void TakeDamage(float dmg)
+    
+    private Vector3 ApplyAccuracy(Vector3 direction, float maxDegrees)
     {
-        if (isDead) return;
-
-        currentHealth -= dmg;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, maxHealth);
-
-        if (currentHealth <= 0) Die();
+        float yaw = Random.Range(-maxDegrees, maxDegrees);
+        float pitch = Random.Range(-maxDegrees, maxDegrees);
+        return Quaternion.Euler(pitch, yaw, 0) * direction;
     }
-
-    private void Die()
+    
+    public override void Die()
     {
-        isDead = true;
-        if (agent != null) agent.enabled = false;
+        base.Die();
+        
         if (col != null) col.enabled = false;
-        animator.SetBool("isDead", true);
+        if (animator != null) animator.SetBool("isDead", true);
+        
         StartCoroutine(DestroyAfterDelay(5f));
     }
 
-    IEnumerator DestroyAfterDelay(float t)
+    private IEnumerator DestroyAfterDelay(float delay)
     {
-        yield return new WaitForSeconds(t);
+        yield return new WaitForSeconds(delay);
         Destroy(gameObject);
+    }
+    
+    protected override void OnDrawGizmos()
+    {
+        base.OnDrawGizmos();
+        
+        // Draw shoot range
+        Gizmos.color = Color.red;
+        Vector3 center = shootPoint != null ? shootPoint.position : transform.position;
+        Gizmos.DrawWireSphere(center, shootRange);
     }
 }

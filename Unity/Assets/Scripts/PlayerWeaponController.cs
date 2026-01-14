@@ -3,11 +3,11 @@
 /////////////////////////////////
 
 using UnityEngine;
-
+[RequireComponent(typeof(StatController))]
 public class PlayerWeaponController : MonoBehaviour
 {
-    [Tooltip("The camera used for aiming.")]
-    public Camera mainCamera;
+    // [Tooltip("The camera used for aiming.")]
+    private Camera mainCamera;
     
     [Tooltip("The currently equipped weapon.")]
     public Weapon currentWeapon;
@@ -23,7 +23,7 @@ public class PlayerWeaponController : MonoBehaviour
 
     private LayerMask m_layerToIgnore;
 
-    public Transform weaponHolder;
+    private Transform weaponHolder;
 
     public void EquipCurrentItem()
     {
@@ -77,6 +77,9 @@ public class PlayerWeaponController : MonoBehaviour
         m_controls.Player.Attack.performed += OnFire;
 
         m_layerToIgnore = LayerMask.GetMask("Invisible_To_FPV");
+
+        weaponHolder = GameObject.Find("WeaponHolder").transform;
+        mainCamera = Camera.main;
     }
 
 

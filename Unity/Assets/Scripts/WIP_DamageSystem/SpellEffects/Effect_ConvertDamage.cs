@@ -6,7 +6,7 @@ public class Effect_ConvertDamage : SpellEffect
     public DamageType From = DamageType.Physical;
     public DamageType To = DamageType.Fire;
 
-    public override void OnCompileHit(Projectile projectile, HitContext context)
+    public override void OnCompileHit(IProjectile projectile, HitContext context)
     {
         float convertedAmount = 0;
         

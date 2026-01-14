@@ -216,7 +216,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 458807
+    m_Bits: 2032439
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -294,7 +294,9 @@ GameObject:
   - component: {fileID: 3810551892565371957}
   - component: {fileID: 6324288970617046038}
   - component: {fileID: 6309236595547580752}
-  m_Layer: 16
+  - component: {fileID: 3600084434335728596}
+  - component: {fileID: 871854839410941028}
+  m_Layer: 8
   m_Name: Player
   m_TagString: Player
   m_Icon: {fileID: 0}
@@ -331,7 +333,7 @@ CharacterController:
     m_Bits: 0
   m_ExcludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 131072
   m_LayerOverridePriority: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
@@ -393,7 +395,10 @@ MonoBehaviour:
     stat:
       BaseValue: 100
       m_modifiers: []
-  regenConfigs: []
+  regenConfigs:
+  - resourceType: 0
+    amountPerSecond: 1
+    requireAlive: 1
 --- !u!114 &6324288970617046038
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -406,12 +411,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a7577f9261a13c3ee90f796171c37494, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mainCamera: {fileID: 5345479528470973352}
   currentWeapon: {fileID: 0}
   currentItem: {fileID: 0}
   aimRaycastDistance: 100
   m_statController: {fileID: 3810551892565371957}
-  weaponHolder: {fileID: 5690107842914386771}
 --- !u!114 &6309236595547580752
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -433,6 +436,45 @@ MonoBehaviour:
   - {fileID: 11400000, guid: e2414298a355a854e89a0a02ff47f32f, type: 2}
   - {fileID: 11400000, guid: ac22f53844ed3b2408d16838573a0b93, type: 2}
   worldItemWrapperPrefab: {fileID: 0}
+--- !u!114 &3600084434335728596
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5962101247343467892}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a7577f9261a13c3ee90f796171c37494, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  currentWeapon: {fileID: 0}
+  currentItem: {fileID: 0}
+  aimRaycastDistance: 100
+  m_statController: {fileID: 0}
+--- !u!136 &871854839410941028
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5962101247343467892}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 2147680512
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.55
+  m_Height: 2
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &7914977849013862010
 GameObject:
   m_ObjectHideFlags: 0

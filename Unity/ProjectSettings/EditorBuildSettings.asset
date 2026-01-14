@@ -6,8 +6,26 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/Cafeteria.unity
+    guid: bed32009c6ba7424db6c10a6ebe25349
+  - enabled: 1
+    path: Assets/Scenes/TrainStation.unity
+    guid: 5f41067be8d2d734bbd41ec0c0933384
+  - enabled: 1
+    path: Assets/Scenes/Warehouse.unity
+    guid: c19eea858d0548c42aeb88836baf8385
+  - enabled: 1
     path: Assets/Scenes/Testing.unity
     guid: 99c9720ab356a0642a771bea13969a05
+  - enabled: 1
+    path: Assets/Scenes/ShootingRange.unity
+    guid: dfb3899dce01c18459cc7f68c8f684b5
+  - enabled: 0
+    path: Assets/Scenes/EnemyAI.unity
+    guid: 3c8ffdf20aa4cb94796c81305ad49cbf
+  - enabled: 0
+    path: Assets/Scenes/toolbar&inventory.unity
+    guid: f5e0a2064944b374e85c37a15a9b871e
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0
