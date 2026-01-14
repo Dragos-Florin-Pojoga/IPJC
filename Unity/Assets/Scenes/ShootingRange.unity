@@ -1054,7 +1054,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   objectsToSpawn:
   - {fileID: 0}
-  - {fileID: 5424425493246605712, guid: 39ed802613a7baffbb6bce42cbd4f224, type: 3}
+  - {fileID: 4096594873619902805, guid: ab101a9fa3d05164abd21d8f31d4ca5a, type: 3}
+  - {fileID: 6426112511996519649, guid: ef0d9ef8c045c78429e94f29ce717110, type: 3}
   - {fileID: 5424425493246605712, guid: 39ed802613a7baffbb6bce42cbd4f224, type: 3}
   numberOfCopies: 10
   spawnCooldown: 0.5
@@ -2233,7 +2234,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3187401257255987057, guid: d84e8671d59d9b344b4faf83a01e530e, type: 3}
       propertyPath: objectsToSpawn.Array.size
-      value: 3
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: 6198878489778247262, guid: d84e8671d59d9b344b4faf83a01e530e, type: 3}
       propertyPath: m_Name
